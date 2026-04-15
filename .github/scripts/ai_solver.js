@@ -14,14 +14,12 @@ async function main() {
   }
   const code = fs.readFileSync(fileName, 'utf8');
 
-  // URL NATIVO DI GITHUB MODELS (Standard OpenAI compatibile)
-  const url = "https://github.com"; 
-  // Se il sopra fallisce, l'alternativa corretta per GitHub Models è:
-  const altUrl = "https://azure.com";
+  const url = "https://api.openai.com/v1/chat/completions";
+
 
   console.log("🧠 Requesting GPT-4o via GitHub...");
 
-  const response = await fetch(altUrl, {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
