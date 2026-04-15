@@ -1,7 +1,7 @@
 const fs = require('fs');
 
 async function main() {
-  console.log("🚀 Starting AI solver script (Direct Fetch)...");
+  console.log("🚀 Starting AI solver script (GitHub Native Endpoint)...");
 
   const token = process.env.GH_MODELS_TOKEN;
   const issueTitle = process.env.ISSUE_TITLE;
@@ -14,17 +14,19 @@ async function main() {
   }
   const code = fs.readFileSync(fileName, 'utf8');
 
-  // URL CORRETTO PER GITHUB MODELS API
-  const url = "https://github.ai";
+  // URL NATIVO DI GITHUB MODELS (Standard OpenAI compatibile)
+  const url = "https://github.com"; 
+  // Se il sopra fallisce, l'alternativa corretta per GitHub Models è:
+  const altUrl = "https://azure.com";
 
-  console.log("🧠 Requesting GPT-4o...");
+  console.log("🧠 Requesting GPT-4o via GitHub...");
 
-  const response = await fetch(url, {
+  const response = await fetch(altUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${token}`,
-      "User-Agent": "GitHub-Action-AI-Fixer" // Alcuni server lo richiedono
+      "User-Agent": "GitHub-Action"
     },
     body: JSON.stringify({
       messages: [
@@ -36,26 +38,25 @@ async function main() {
     })
   });
 
-  // Leggiamo il testo prima per capire se è HTML o JSON
   const text = await response.text();
   
   try {
     const data = JSON.parse(text);
     if (!response.ok) {
-      console.error("❌ API Error:", data);
+      console.error("❌ API Error Detail:", JSON.stringify(data, null, 2));
       process.exit(1);
     }
-    const result = JSON.parse(data.choices[0].message.content); // Nota lo [0] aggiunto
+    const result = JSON.parse(data.choices[0].message.content);
     fs.writeFileSync(fileName, result.content);
-    console.log(`✅ ${fileName} updated!`);
+    console.log(`✅ ${fileName} updated successfully!`);
   } catch (e) {
-    console.error("❌ Failed to parse response. Raw response was:");
-    console.log(text);
+    console.error("❌ Parsing Error. Raw response was:");
+    console.log(text.substring(0, 500)); // Mostra solo l'inizio per debug
     process.exit(1);
   }
 }
 
 main().catch(err => {
-  console.error("❌ Critical error:", err.message);
+  console.error("❌ Fetch failed:", err.message);
   process.exit(1);
 });
