@@ -1,7 +1,7 @@
 const fs = require('fs');
 
 async function main() {
-  console.log("🚀 Starting AI solver script (Fetch Mode)...");
+  console.log("🚀 Starting AI solver script (Direct Fetch)...");
 
   const token = process.env.GH_MODELS_TOKEN;
   const issueTitle = process.env.ISSUE_TITLE;
@@ -9,24 +9,26 @@ async function main() {
 
   if (!token) throw new Error("GH_MODELS_TOKEN is missing!");
 
-  // Ensure the file exists
   if (!fs.existsSync(fileName)) {
-    console.log(`⚠️ Creating ${fileName}...`);
     fs.writeFileSync(fileName, "// Placeholder code\nfunction fixMe() {}");
   }
   const code = fs.readFileSync(fileName, 'utf8');
 
-  console.log("🧠 Sending request to GitHub Models...");
+  // URL CORRETTO PER GITHUB MODELS API
+  const url = "https://azure.com";
 
-  const response = await fetch("https://azure.com", {
+  console.log("🧠 Requesting GPT-4o...");
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`
+      "Authorization": `Bearer ${token}`,
+      "User-Agent": "GitHub-Action-AI-Fixer" // Alcuni server lo richiedono
     },
     body: JSON.stringify({
       messages: [
-        { role: "system", content: "You are an expert developer. Respond ONLY with a valid JSON object: {\"content\": \"fixed_code\"}" },
+        { role: "system", content: "You are an expert developer. Respond ONLY with a valid JSON: {\"content\": \"fixed_code\"}" },
         { role: "user", content: `Issue: ${issueTitle}\nCurrent code:\n${code}` }
       ],
       model: "gpt-4o",
@@ -34,18 +36,23 @@ async function main() {
     })
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error("❌ API Error:", data);
+  // Leggiamo il testo prima per capire se è HTML o JSON
+  const text = await response.text();
+  
+  try {
+    const data = JSON.parse(text);
+    if (!response.ok) {
+      console.error("❌ API Error:", data);
+      process.exit(1);
+    }
+    const result = JSON.parse(data.choices[0].message.content); // Nota lo [0] aggiunto
+    fs.writeFileSync(fileName, result.content);
+    console.log(`✅ ${fileName} updated!`);
+  } catch (e) {
+    console.error("❌ Failed to parse response. Raw response was:");
+    console.log(text);
     process.exit(1);
   }
-
-  // Extract the content from the standard OpenAI-like response structure
-  const result = JSON.parse(data.choices[0].message.content);
-  fs.writeFileSync(fileName, result.content);
-  
-  console.log(`✅ ${fileName} updated successfully!`);
 }
 
 main().catch(err => {
