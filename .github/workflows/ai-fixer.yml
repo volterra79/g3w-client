@@ -1,0 +1,63 @@
+name: AI Auto-Fixer
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  ai-job:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initial Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "🤖 I'm analyzing the report with **GitHub Models**..."
+            })
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install SDK
+        run: npm install @azure-rest/ai-inference
+
+      - name: AI Logic
+        env:
+          GH_MODELS_TOKEN: ${{ secrets.AI_MODELS_TOKEN }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: node .github/scripts/ai_solver.js
+
+      - name: Create PR
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "AI fix for #${{ github.event.issue.number }}"
+          title: "AI Fix: ${{ github.event.issue.title }}"
+          body: "Automatically resolves #${{ github.event.issue.number }}"
+          branch: ai-fix-${{ github.event.issue.number }}
+
+      - name: Final Comment
+        if: steps.cpr.outputs.pull-request-number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "✅ I have created PR #${{ steps.cpr.outputs.pull-request-number }} with a possible solution."
+            })
