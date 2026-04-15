@@ -1,9 +1,4 @@
-const aiInference = require("@azure-rest/ai-inference");
-
-// The debug output showed that everything is inside .default
-const sdk = aiInference.default;
-const ModelClient = sdk.default || sdk; // Standard pattern for this SDK
-const AzureKeyCredential = sdk.AzureKeyCredential;
+const ModelClient = require("@azure-rest/ai-inference").default;
 
 async function main() {
   console.log("🚀 Starting AI solver script...");
@@ -12,18 +7,15 @@ async function main() {
     throw new Error("Error: GH_MODELS_TOKEN not found in secrets!");
   }
 
-  // Double check if we finally have the class
-  if (!AzureKeyCredential) {
-    throw new Error("AzureKeyCredential is still undefined. SDK structure is unexpected.");
-  }
-
+  // We bypass the AzureKeyCredential constructor and pass the token directly
+  // through an object that mimics the expected structure
   const client = ModelClient(
     "https://azure.com",
-    new AzureKeyCredential(process.env.GH_MODELS_TOKEN)
+    { key: process.env.GH_MODELS_TOKEN } 
   );
 
   const fs = require('fs');
-  const fileName = 'index.js'; 
+  const fileName = 'index.js'; // Ensure this file exists
   
   if (!fs.existsSync(fileName)) {
     console.log(`⚠️ File ${fileName} not found. Creating placeholder.`);
@@ -55,7 +47,7 @@ async function main() {
     process.exit(1);
   }
 
-  const result = JSON.parse(response.body.choices[0].message.content);
+  const result = JSON.parse(response.body.choices.message.content);
   fs.writeFileSync(fileName, result.content);
   
   console.log(`✅ ${fileName} successfully updated.`);
