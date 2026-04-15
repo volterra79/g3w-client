@@ -14,7 +14,7 @@ async function main() {
   }
   const code = fs.readFileSync(fileName, 'utf8');
 
-  const url = "https://api.openai.com/v1/chat/completions";
+  const url = "https://models.github.ai/inference";
 
 
   console.log("🧠 Requesting GPT-4o via GitHub...");
