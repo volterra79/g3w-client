@@ -15,7 +15,7 @@ async function main() {
   const code = fs.readFileSync(fileName, 'utf8');
 
   // URL CORRETTO PER GITHUB MODELS API
-  const url = "https://azure.com";
+  const url = "https://github.ai";
 
   console.log("🧠 Requesting GPT-4o...");
 
