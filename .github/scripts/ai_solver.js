@@ -1,60 +1,54 @@
-const ModelClient = require("@azure-rest/ai-inference").default;
+const fs = require('fs');
 
 async function main() {
-  console.log("🚀 Starting AI solver script...");
+  console.log("🚀 Starting AI solver script (Fetch Mode)...");
 
-  if (!process.env.GH_MODELS_TOKEN) {
-    throw new Error("Error: GH_MODELS_TOKEN not found in secrets!");
-  }
+  const token = process.env.GH_MODELS_TOKEN;
+  const issueTitle = process.env.ISSUE_TITLE;
+  const fileName = 'index.js';
 
-  // We bypass the AzureKeyCredential constructor and pass the token directly
-  // through an object that mimics the expected structure
-  const client = ModelClient(
-    "https://azure.com",
-    { key: process.env.GH_MODELS_TOKEN } 
-  );
+  if (!token) throw new Error("GH_MODELS_TOKEN is missing!");
 
-  const fs = require('fs');
-  const fileName = 'index.js'; // Ensure this file exists
-  
+  // Ensure the file exists
   if (!fs.existsSync(fileName)) {
-    console.log(`⚠️ File ${fileName} not found. Creating placeholder.`);
-    fs.writeFileSync(fileName, "// Placeholder\nfunction solve() {}");
+    console.log(`⚠️ Creating ${fileName}...`);
+    fs.writeFileSync(fileName, "// Placeholder code\nfunction fixMe() {}");
   }
-
   const code = fs.readFileSync(fileName, 'utf8');
 
-  console.log("🧠 Requesting fix from GPT-4o...");
-  const response = await client.path("/chat/completions").post({
-    body: {
+  console.log("🧠 Sending request to GitHub Models...");
+
+  const response = await fetch("https://azure.com", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({
       messages: [
-        { 
-          role: "system", 
-          content: "You are an expert developer. Respond ONLY with a valid JSON: {\"content\": \"fixed_code\"}" 
-        },
-        { 
-          role: "user", 
-          content: `Analyze this issue: ${process.env.ISSUE_TITLE}\nCurrent code:\n${code}` 
-        }
+        { role: "system", content: "You are an expert developer. Respond ONLY with a valid JSON object: {\"content\": \"fixed_code\"}" },
+        { role: "user", content: `Issue: ${issueTitle}\nCurrent code:\n${code}` }
       ],
       model: "gpt-4o",
       response_format: { type: "json_object" }
-    }
+    })
   });
 
-  if (response.status !== "200") {
-    console.error("❌ API Error:", response.body.error);
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("❌ API Error:", data);
     process.exit(1);
   }
 
-  const result = JSON.parse(response.body.choices.message.content);
+  // Extract the content from the standard OpenAI-like response structure
+  const result = JSON.parse(data.choices[0].message.content);
   fs.writeFileSync(fileName, result.content);
   
-  console.log(`✅ ${fileName} successfully updated.`);
+  console.log(`✅ ${fileName} updated successfully!`);
 }
 
 main().catch(err => {
-  console.error("❌ Critical error:");
-  console.error(err);
+  console.error("❌ Critical error:", err.message);
   process.exit(1);
 });
