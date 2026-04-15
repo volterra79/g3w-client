@@ -1,40 +1,33 @@
 const aiInference = require("@azure-rest/ai-inference");
 
-/**
- * Robust handling of the SDK exports.
- * Depending on the version, the classes might be under .default or exported directly.
- */
-const ModelClient = aiInference.default || aiInference;
-const AzureKeyCredential = (aiInference.default && aiInference.default.AzureKeyCredential) 
-                           ? aiInference.default.AzureKeyCredential 
-                           : aiInference.AzureKeyCredential;
+// The debug output showed that everything is inside .default
+const sdk = aiInference.default;
+const ModelClient = sdk.default || sdk; // Standard pattern for this SDK
+const AzureKeyCredential = sdk.AzureKeyCredential;
 
 async function main() {
   console.log("🚀 Starting AI solver script...");
 
-  // Verify the existence of the GitHub Models token
   if (!process.env.GH_MODELS_TOKEN) {
     throw new Error("Error: GH_MODELS_TOKEN not found in secrets!");
   }
 
-  // Double-check if AzureKeyCredential was found
+  // Double check if we finally have the class
   if (!AzureKeyCredential) {
-    console.log("Available SDK exports:", Object.keys(aiInference));
-    throw new Error("AzureKeyCredential is still undefined. Check SDK version.");
+    throw new Error("AzureKeyCredential is still undefined. SDK structure is unexpected.");
   }
 
-  // Initialize the client (using it as a factory function for maximum compatibility)
   const client = ModelClient(
     "https://azure.com",
     new AzureKeyCredential(process.env.GH_MODELS_TOKEN)
   );
 
   const fs = require('fs');
-  const fileName = 'index.js'; // Ensure this file exists in your repository
+  const fileName = 'index.js'; 
   
   if (!fs.existsSync(fileName)) {
-    console.log(`⚠️ File ${fileName} not found. Creating a placeholder.`);
-    fs.writeFileSync(fileName, "// Placeholder file\nfunction solve() {}");
+    console.log(`⚠️ File ${fileName} not found. Creating placeholder.`);
+    fs.writeFileSync(fileName, "// Placeholder\nfunction solve() {}");
   }
 
   const code = fs.readFileSync(fileName, 'utf8');
@@ -62,11 +55,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Parse the JSON result and overwrite the file
   const result = JSON.parse(response.body.choices[0].message.content);
   fs.writeFileSync(fileName, result.content);
   
-  console.log(`✅ ${fileName} successfully updated by AI.`);
+  console.log(`✅ ${fileName} successfully updated.`);
 }
 
 main().catch(err => {
