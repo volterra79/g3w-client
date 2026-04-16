@@ -1,7 +1,7 @@
-const core = require('@actions/core');
-const github = require('@actions/github');
-const ModelClient = require('@azure-rest/ai-inference').default;
-const { isUnexpected } = require('@azure-rest/ai-inference');
+import core from '@actions/core';
+import github from '@actions/github';
+import ModelClient from '@azure-rest/ai-inference';
+import { isUnexpected } from '@azure-rest/ai-inference';
 
 async function run() {
   try {
