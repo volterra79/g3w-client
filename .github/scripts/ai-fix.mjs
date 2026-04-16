@@ -1,11 +1,12 @@
-import core from '@actions/core';
-import github from '@actions/github';
-import ModelClient from '@azure-rest/ai-inference';
-import { isUnexpected } from '@azure-rest/ai-inference';
+import * as core from '@actions/core';
+import * as github from '@actions/github';
+import ModelClient, { isUnexpected } from '@azure-rest/ai-inference';
 
 async function run() {
   try {
     const token = process.env.GITHUB_TOKEN;
+    
+    // Nota: con l'import * as, github non ha più .default
     const octokit = github.getOctokit(token);
     const context = github.context;
 
@@ -13,10 +14,10 @@ async function run() {
     const issueBody = process.env.ISSUE_BODY;
 
     // 1. Configurazione Client GitHub Models
-    const client = new ModelClient(
-      "https://azure.com",
-      { key: token }
-    );
+    // Per Azure Inference, se l'import di default fallisce, usa:
+    // const client = new ModelClient.default(...)
+    const client = ModelClient.default ? new ModelClient.default("...", { key: token }) : new ModelClient("...", { key: token });
+
 
     // 2. Chiamata all'IA per generare il codice
     const response = await client.path("/chat/completions").post({
