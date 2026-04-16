@@ -1,79 +1,88 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
-import ModelClient, { isUnexpected } from '@azure-rest/ai-inference';
+import createClient from '@azure-rest/ai-inference';
+import { isUnexpected } from '@azure-rest/ai-inference';
 
 async function run() {
   try {
     const token = process.env.GITHUB_TOKEN;
-    
-    // Nota: con l'import * as, github non ha più .default
     const octokit = github.getOctokit(token);
-    const context = github.context;
+    const { owner, repo } = github.context.repo;
 
+    const issueNumber = process.env.ISSUE_NUMBER;
     const issueTitle = process.env.ISSUE_TITLE;
     const issueBody = process.env.ISSUE_BODY;
 
-    // 1. Configurazione Client GitHub Models
-    // Per Azure Inference, se l'import di default fallisce, usa:
-    // const client = new ModelClient.default(...)
-    const client = ModelClient.default ? new ModelClient.default("...", { key: token }) : new ModelClient("...", { key: token });
+    // 1. Configurazione Client (usiamo la factory function createClient)
+    const client = createClient(
+      "https://azure.com",
+      { key: token }
+    );
 
+    core.info("Interrogazione modello AI...");
 
-    // 2. Chiamata all'IA per generare il codice
+    // 2. Chiamata al modello
     const response = await client.path("/chat/completions").post({
       body: {
-        model: "gpt-4o", // Puoi cambiare in "Llama-3-70b" o altri
+        model: "gpt-4o",
         messages: [
-          { role: "system", content: "Sei un assistente programmatore. Rispondi SOLO con il codice richiesto, senza spiegazioni o blocchi markdown." },
-          { role: "user", content: `Crea un fix per questa issue:\nTitolo: ${issueTitle}\nDescrizione: ${issueBody}` }
+          { role: "system", content: "Sei un programmatore esperto. Rispondi solo con il codice richiesto senza spiegazioni." },
+          { role: "user", content: `Fix per issue #${issueNumber}: ${issueTitle}\n${issueBody}` }
         ],
-        temperature: 0.2
+        temperature: 0.1
       }
     });
 
-    if (isUnexpected(response)) throw response.body.error;
+    if (isUnexpected(response)) {
+      throw new Error(`AI Error: ${response.body.error.message}`);
+    }
+
     const suggestedCode = response.body.choices[0].message.content;
 
-    // 3. Logica Git: Creazione Branch e PR
-    const branchName = `ai-fix-issue-${process.env.ISSUE_NUMBER}`;
-    const fileName = 'fix_from_ai.md'; // Esempio: puoi renderlo dinamico
+    // 3. Logica Git
+    const branchName = `ai-fix-${issueNumber}`;
+    const fileName = 'AI_FIX_SUGGESTION.md';
 
-    // Prende il riferimento al commit principale
-    const { data: ref } = await octokit.rest.git.getRef({
-      ...context.repo,
-      ref: `heads/${context.payload.repository.default_branch}`
+    // Ottieni lo SHA del branch principale
+    const { data: mainRef } = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/main` // o 'master' se il tuo branch principale si chiama così
     });
 
-    // Crea il nuovo branch
+    // Crea Branch
     await octokit.rest.git.createRef({
-      ...context.repo,
+      owner,
+      repo,
       ref: `refs/heads/${branchName}`,
-      sha: ref.object.sha
+      sha: mainRef.object.sha
     });
 
-    // Crea o aggiorna il file con il codice dell'IA
+    // Crea File
     await octokit.rest.repos.createOrUpdateFileContents({
-      ...context.repo,
+      owner,
+      repo,
       path: fileName,
-      message: `AI fix for issue #${process.env.ISSUE_NUMBER}`,
+      message: `AI fix for issue #${issueNumber}`,
       content: Buffer.from(suggestedCode).toString('base64'),
       branch: branchName
     });
 
-    // 4. Creazione della Pull Request in DRAFT
-    await octokit.rest.pulls.create({
-      ...context.repo,
-      title: `[AI FIX] ${issueTitle}`,
+    // 4. Crea PR in Draft
+    const pr = await octokit.rest.pulls.create({
+      owner,
+      repo,
+      title: `[AI] Fix for #${issueNumber}`,
       head: branchName,
-      base: context.payload.repository.default_branch,
-      body: `Questa PR è stata generata automaticamente per risolvere la issue #${process.env.ISSUE_NUMBER}.\n\nAI Suggestion:\n${suggestedCode}`,
+      base: 'main',
+      body: `Questa è una PR automatica generata dai GitHub Models.\n\n### Suggerimento:\n${suggestedCode}`,
       draft: true
     });
 
-    console.log("Draft PR creata con successo!");
+    core.info(`PR creata con successo: ${pr.data.html_url}`);
 
   } catch (error) {
-    core.setFailed(error.message);
+    core.setFailed(`Errore durante l'esecuzione: ${error.message}`);
   }
 }
 
