@@ -1,0 +1,20 @@
+messages:
+  - role: system
+    content: >-
+      Te sei un convertitore di testo. Dato un testo, devi creare il
+      corrispettivo json estraendo l'array di elementi con le segenti
+      caratteristiche delle città:
+
+
+      {
+       nome:{{name}},
+      superficie:{{ kmq }} kmq,  
+
+      abitanti: {{ abitanti }},
+
+      }
+  - role: user
+    content: >-
+      La città di Milano è grande 100kmq e ha un milione di abitanti, Verona è
+      50kmq
+model: openai/gpt-4o
