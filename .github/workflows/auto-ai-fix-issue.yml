@@ -13,10 +13,10 @@ jobs:
       - name: Check issue contains 'ai-fix' label
         id: check_label
         run: |
-          echo "::set-output name=process::false"
+          echo "process=false" >> $GITHUB_OUTPUT
           for label in $(jq -r '.issue.labels[].name' < "${GITHUB_EVENT_PATH}"); do
             if [[ "$label" == "ai-fix" ]]; then
-              echo "::set-output name=process::true"
+              echo "process=true" >> $GITHUB_OUTPUT
               break
             fi
           done
@@ -30,34 +30,42 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Create branch for the issue
+        id: create_branch
         if: steps.check_label.outputs.process == 'true'
         run: |
           ISSUE_NUMBER=$(jq -r '.issue.number' < "${GITHUB_EVENT_PATH}")
           ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}" | sed 's/ /-/g')
           BRANCH_NAME="ai-fix-issue-${ISSUE_NUMBER}"
-          
-          if [ -z "$BRANCH_NAME" ] || [ "$BRANCH_NAME" == "ai-fix-issue-" ]; then
-            # Calcola un valore incrementale
-            # Prendi l'ultimo branch che inizia per ai-fix-default-
+
+          # Se il branch è vuoto o malformato, crea nome incrementale
+          if [ -z "$ISSUE_NUMBER" ] || [ "$BRANCH_NAME" == "ai-fix-issue-" ]; then
             N=$(git branch -a | grep 'ai-fix-issue-default-' | grep -oE '[0-9]+' | sort -n | tail -1)
+            if [ -z "$N" ]; then N=0; fi
             N=$((N + 1))
             BRANCH_NAME="ai-fix-issue-default-$N"
             echo "Branch name vuoto, imposto di default: $BRANCH_NAME"
           fi
-          
+
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
           git checkout -b "${BRANCH_NAME}"
           git push origin "${BRANCH_NAME}"
 
+          # Output per i successivi step
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+          echo "issue_title=$ISSUE_TITLE" >> "$GITHUB_OUTPUT"
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          ISSUE_BODY=$(jq -r '.issue.body' < "${GITHUB_EVENT_PATH}")
+          echo "issue_body=$ISSUE_BODY" >> "$GITHUB_OUTPUT"
+
       - name: Create draft Pull Request
         if: steps.check_label.outputs.process == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
-          branch: ${{ steps.check_label.outputs.branch_name }}
+          branch: ${{ steps.create_branch.outputs.branch_name }}
           base: dev
-          title: "Fix: ${{ steps.check_label.outputs.issue_title }}"
-          description: |
-            Questa PR tenta di risolvere il problema descritto nella issue #${{ steps.check_label.outputs.issue_number }}: ${{ steps.check_label.outputs.issue_body }}.
+          title: "Fix: ${{ steps.create_branch.outputs.issue_title }}"
+          body: |
+            Questa PR tenta di risolvere il problema descritto nella issue #${{ steps.create_branch.outputs.issue_number }}: ${{ steps.create_branch.outputs.issue_body }}.
             Tag associato: ai-fix.
           draft: true
