@@ -35,6 +35,16 @@ jobs:
           ISSUE_NUMBER=$(jq -r '.issue.number' < "${GITHUB_EVENT_PATH}")
           ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}" | sed 's/ /-/g')
           BRANCH_NAME="ai-fix-issue-${ISSUE_NUMBER}"
+          
+          if [ -z "$BRANCH_NAME" ] || [ "$BRANCH_NAME" == "ai-fix-issue-" ]; then
+            # Calcola un valore incrementale
+            # Prendi l'ultimo branch che inizia per ai-fix-default-
+            N=$(git branch -a | grep 'ai-fix-issue-default-' | grep -oE '[0-9]+' | sort -n | tail -1)
+            N=$((N + 1))
+            BRANCH_NAME="ai-fix-issue-default-$N"
+            echo "Branch name vuoto, imposto di default: $BRANCH_NAME"
+          fi
+          
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
           git checkout -b "${BRANCH_NAME}"
