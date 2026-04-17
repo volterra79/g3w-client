@@ -45,7 +45,7 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           branch: ${{ steps.check_label.outputs.branch_name }}
-          base: main
+          base: dev
           title: "Fix: ${{ steps.check_label.outputs.issue_title }}"
           description: |
             Questa PR tenta di risolvere il problema descritto nella issue #${{ steps.check_label.outputs.issue_number }}: ${{ steps.check_label.outputs.issue_body }}.
