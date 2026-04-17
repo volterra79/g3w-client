@@ -37,6 +37,7 @@ jobs:
         id: ai_fixes
         # Aggiungi questo per autorizzare la CLI
         run: |
+          export GH_TOKEN="${secrets.AI_MODELS_TOKEN}"
           ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}")
           ISSUE_BODY=$(jq -r '.issue.body' < "${GITHUB_EVENT_PATH}")
          
@@ -63,8 +64,6 @@ jobs:
           done < files_ai_fix.txt
 
           echo "modified=$MODIFIED" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
       - name: Create branch & commit fix
         if: steps.ai_fixes.outputs.modified == 'true'
         run: |
