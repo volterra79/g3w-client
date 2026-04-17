@@ -33,11 +33,11 @@ jobs:
           echo "$FILE_LIST" > files_ai_fix.txt
 
       - name: Apply AI fix to all files
-        env:
-          GITHUB_TOKEN: ${{ github.token }}  
         if: steps.check_label.outputs.process == 'true'
         id: ai_fixes
-        
+        # Aggiungi questo per autorizzare la CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         run: |
           ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}")
           ISSUE_BODY=$(jq -r '.issue.body' < "${GITHUB_EVENT_PATH}")
