@@ -34,7 +34,7 @@ jobs:
 
       - name: Apply AI fix to all files
         env:
-          GH_TOKEN: ${{ github.token }}  
+          GITHUB_TOKEN: ${{ github.token }}  
         if: steps.check_label.outputs.process == 'true'
         id: ai_fixes
         
