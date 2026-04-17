@@ -33,15 +33,15 @@ jobs:
           echo "$FILE_LIST" > files_ai_fix.txt
 
       - name: Apply AI fix to all files
-          
+        env:
+          GH_TOKEN: ${{ github.token }}  
         if: steps.check_label.outputs.process == 'true'
         id: ai_fixes
         
         run: |
           ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}")
           ISSUE_BODY=$(jq -r '.issue.body' < "${GITHUB_EVENT_PATH}")
-          export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
-          export GH_TOKEN=${{ secrets.GITHUB_TOKEN }}
+         
 
           MODIFIED=false
 
