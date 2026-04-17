@@ -35,9 +35,11 @@ jobs:
       - name: Apply AI fix to all files
         if: steps.check_label.outputs.process == 'true'
         id: ai_fixes
+        env:
+          # Qui GitHub sostituisce il segreto prima di eseguire lo script
+          GH_TOKEN: ${{ secrets.AI_MODELS_TOKEN }}
         # Aggiungi questo per autorizzare la CLI
         run: |
-          export GH_TOKEN="${secrets.AI_MODELS_TOKEN}"
           ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}")
           ISSUE_BODY=$(jq -r '.issue.body' < "${GITHUB_EVENT_PATH}")
          
