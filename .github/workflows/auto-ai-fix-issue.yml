@@ -1,0 +1,53 @@
+name: Auto AI Fix
+
+on:
+  issues:
+    types:
+      - opened
+      - labeled
+
+jobs:
+  process_ai_fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check issue contains 'ai-fix' label
+        id: check_label
+        run: |
+          echo "::set-output name=process::false"
+          for label in $(jq -r '.issue.labels[].name' < "${GITHUB_EVENT_PATH}"); do
+            if [[ "$label" == "ai-fix" ]]; then
+              echo "::set-output name=process::true"
+              break
+            fi
+          done
+
+      - name: Exit if no 'ai-fix' label
+        if: steps.check_label.outputs.process != 'true'
+        run: echo "No 'ai-fix' label found. Exiting."
+
+      - name: Checkout repository
+        if: steps.check_label.outputs.process == 'true'
+        uses: actions/checkout@v3
+
+      - name: Create branch for the issue
+        if: steps.check_label.outputs.process == 'true'
+        run: |
+          ISSUE_NUMBER=$(jq -r '.issue.number' < "${GITHUB_EVENT_PATH}")
+          ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}" | sed 's/ /-/g')
+          BRANCH_NAME="ai-fix-issue-${ISSUE_NUMBER}"
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git checkout -b "${BRANCH_NAME}"
+          git push origin "${BRANCH_NAME}"
+
+      - name: Create draft Pull Request
+        if: steps.check_label.outputs.process == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          branch: ${{ steps.check_label.outputs.branch_name }}
+          base: main
+          title: "Fix: ${{ steps.check_label.outputs.issue_title }}"
+          description: |
+            Questa PR tenta di risolvere il problema descritto nella issue #${{ steps.check_label.outputs.issue_number }}: ${{ steps.check_label.outputs.issue_body }}.
+            Tag associato: ai-fix.
+          draft: true
