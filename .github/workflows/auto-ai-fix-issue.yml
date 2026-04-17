@@ -33,14 +33,14 @@ jobs:
           echo "$FILE_LIST" > files_ai_fix.txt
 
       - name: Apply AI fix to all files
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
         if: steps.check_label.outputs.process == 'true'
         id: ai_fixes
         
         run: |
           ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}")
           ISSUE_BODY=$(jq -r '.issue.body' < "${GITHUB_EVENT_PATH}")
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
           MODIFIED=false
 
@@ -49,6 +49,7 @@ jobs:
             PROMPT="Ecco il file $FILE:\n$FILE_CONTENT\n\nRisolvi questa issue (${ISSUE_TITLE}):\n$ISSUE_BODY\n\nRispondi solo con il file aggiornato (o identico se non serve cambiare), senza commenti o spiegazioni."
 
             AI_CODE=$(gh api \
+              --token "$GITHUB_TOKEN" \
               --method POST \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2024-04-10" \
