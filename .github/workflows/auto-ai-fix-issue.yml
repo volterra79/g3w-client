@@ -1,4 +1,4 @@
-name: Auto AI Fix
+name: Auto AI Fix All Files
 
 on:
   issues:
@@ -9,6 +9,7 @@ jobs:
   process_ai_fix:
     runs-on: ubuntu-latest
     steps:
+
       - name: Check issue contains 'ai-fix' label
         id: check_label
         run: |
@@ -20,51 +21,74 @@ jobs:
             fi
           done
 
-      - name: Exit if no 'ai-fix' label
-        if: steps.check_label.outputs.process != 'true'
-        run: echo "No 'ai-fix' label found. Exiting."
-
       - name: Checkout repository
         if: steps.check_label.outputs.process == 'true'
         uses: actions/checkout@v3
 
-      - name: Create branch for the issue
-        id: create_branch
+      - name: Find all JavaScript files
         if: steps.check_label.outputs.process == 'true'
+        id: find_files
+        run: |
+          FILE_LIST=$(find . -type f -name "*.js" | grep -v node_modules)
+          echo "$FILE_LIST" > files_ai_fix.txt
+
+      - name: Apply AI fix to all files
+        if: steps.check_label.outputs.process == 'true'
+        id: ai_fixes
+        run: |
+          ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}")
+          ISSUE_BODY=$(jq -r '.issue.body' < "${GITHUB_EVENT_PATH}")
+
+          MODIFIED=false
+
+          while read FILE; do
+            FILE_CONTENT=$(cat "$FILE")
+            PROMPT="Ecco il file $FILE:\n$FILE_CONTENT\n\nRisolvi questa issue (${ISSUE_TITLE}):\n$ISSUE_BODY\n\nRispondi solo con il file aggiornato (o identico se non serve cambiare), senza commenti o spiegazioni."
+
+            AI_CODE=$(gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2024-04-10" \
+              /models/text/copilot-4 \
+              -f prompt="$PROMPT" | jq -r '.choices[0].text')
+
+            # Confronta e sovrascrivi solo se cambiato
+            if [ "$AI_CODE" != "$FILE_CONTENT" ]; then
+              echo "$AI_CODE" > "$FILE"
+              MODIFIED=true
+              echo "Modificato $FILE"
+            fi
+          done < files_ai_fix.txt
+
+          echo "modified=$MODIFIED" >> $GITHUB_OUTPUT
+
+      - name: Create branch & commit fix
+        if: steps.ai_fixes.outputs.modified == 'true'
         run: |
           ISSUE_NUMBER=$(jq -r '.issue.number' < "${GITHUB_EVENT_PATH}")
-          ISSUE_TITLE=$(jq -r '.issue.title' < "${GITHUB_EVENT_PATH}" | sed 's/ /-/g')
           BRANCH_NAME="ai-fix-issue-${ISSUE_NUMBER}"
-
-          # Se il branch è vuoto o malformato, crea nome incrementale
-          if [ -z "$ISSUE_NUMBER" ] || [ "$BRANCH_NAME" == "ai-fix-issue-" ]; then
-            N=$(git branch -a | grep 'ai-fix-issue-default-' | grep -oE '[0-9]+' | sort -n | tail -1)
-            if [ -z "$N" ]; then N=0; fi
-            N=$((N + 1))
-            BRANCH_NAME="ai-fix-issue-default-$N"
-            echo "Branch name vuoto, imposto di default: $BRANCH_NAME"
-          fi
 
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
+
           git checkout -b "${BRANCH_NAME}"
+          git add .
+          git commit -m "AI fix per issue #${ISSUE_NUMBER} (applicato a tutti i file)"
           git push origin "${BRANCH_NAME}"
 
-          # Output per i successivi step
-          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
-          echo "issue_title=$ISSUE_TITLE" >> "$GITHUB_OUTPUT"
-          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
-          ISSUE_BODY=$(jq -r '.issue.body' < "${GITHUB_EVENT_PATH}")
-          echo "issue_body=$ISSUE_BODY" >> "$GITHUB_OUTPUT"
-
       - name: Create draft Pull Request
-        if: steps.check_label.outputs.process == 'true'
+        if: steps.ai_fixes.outputs.modified == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
-          branch: ${{ steps.create_branch.outputs.branch_name }}
+          branch: ai-fix-issue-${{ github.event.issue.number }}
           base: dev
-          title: "Fix: ${{ steps.create_branch.outputs.issue_title }}"
+          title: "Fix: ${{ github.event.issue.title }}"
           body: |
-            Questa PR tenta di risolvere il problema descritto nella issue #${{ steps.create_branch.outputs.issue_number }}: ${{ steps.create_branch.outputs.issue_body }}.
+            Questa PR applica il fix della issue #${{ github.event.issue.number }} a tutti i file del repository.
+            Issue: ${{ github.event.issue.body }}
             Tag associato: ai-fix.
           draft: true
+
+      - name: End if nothing modified
+        if: steps.ai_fixes.outputs.modified != 'true'
+        run: echo "Nessuna modifica necessaria secondo il modello AI, workflow terminato."
